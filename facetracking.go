@@ -17,6 +17,7 @@ import (
 	"gobot.io/x/gobot"
 	"gobot.io/x/gobot/platforms/dji/tello"
 	"gobot.io/x/gobot/platforms/joystick"
+	"gobot.io/x/gobot/platforms/keyboard"
 )
 
 const maxJoyVal = 32768
@@ -34,6 +35,8 @@ var ffmpegOut, _ = ffmpeg.StdoutPipe()
 
 var joyAdaptor = joystick.NewAdaptor()
 var stick = joystick.NewDriver(joyAdaptor, "dualshock4")
+var keys = keyboard.NewDriver()
+
 var flightData *tello.FlightData
 var tracking = false
 var detectSize = false
@@ -42,6 +45,7 @@ var hasNCS = false
 
 func init() {
 	handleJoystick()
+	handleKeyboard()
 	go func() {
 		if err := ffmpeg.Start(); err != nil {
 			fmt.Println(err)
@@ -74,6 +78,7 @@ func init() {
 			[]gobot.Connection{joyAdaptor},
 			[]gobot.Device{stick},
 			[]gobot.Device{drone},
+			[]gobot.Device{keys},
 		)
 
 		robot.Start()
@@ -326,30 +331,103 @@ func max(a, b float32) float32 {
 	return b
 }
 
-func handleJoystick() {
-	stick.On(joystick.CirclePress, func(data interface{}) {
-		drone.Forward(0)
-		drone.Up(0)
-		drone.Clockwise(0)
-		tracking = !tracking
-		if tracking {
-			detectSize = true
-			println("tracking")
-		} else {
-			detectSize = false
-			println("not tracking")
+func handleKeyboard() {
+	keys.On(keyboard.Key, func(data interface{}) {
+		key := data.(keyboard.KeyEvent)
+		switch key.Key {
+		case keyboard.O:
+			toggleTracking()
+		case keyboard.B:
+			battaryInfo()
+		case keyboard.T:
+			takeOff()
+		case keyboard.L:
+			landing()
+		case keyboard.A:
+			headCounterClockwise()
+		case keyboard.D:
+			headClockwise()
+		case keyboard.W:
+			moveForward()
+		case keyboard.S:
+			moveBackward()
+		case keyboard.Q:
+			shiftLeft()
+		case keyboard.E:
+			shiftRight()
+		case keyboard.Z:
+			flyHigher()
+		case keyboard.X:
+			flyLower()
+		default:
+			fmt.Println("keyboard event!", key, key.Char)
 		}
 	})
+
+}
+
+func toggleTracking() {
+	drone.Forward(0)
+	drone.Up(0)
+	drone.Clockwise(0)
+	tracking = !tracking
+	if tracking {
+		detectSize = true
+		println("tracking")
+	} else {
+		detectSize = false
+		println("not tracking")
+	}
+}
+
+func battaryInfo() {
+	fmt.Println("battery:", flightData.BatteryPercentage)
+}
+
+func takeOff() {
+	drone.TakeOff()
+	println("Takeoff")
+}
+func landing() {
+	drone.Land()
+	println("Land")
+}
+func moveForward() {
+	drone.Forward(1)
+}
+func moveBackward() {
+	drone.Backward(1)
+}
+func flyHigher() {
+	drone.Up(1)
+}
+func flyLower() {
+	drone.Down(1)
+}
+func headCounterClockwise() {
+	drone.CounterClockwise(1)
+}
+func headClockwise() {
+	drone.Clockwise(1)
+}
+func shiftLeft() {
+	drone.Left(1)
+}
+func shiftRight() {
+	drone.Right(1)
+}
+func handleJoystick() {
+	stick.On(joystick.CirclePress, func(data interface{}) {
+		toggleTracking()
+	})
 	stick.On(joystick.SquarePress, func(data interface{}) {
-		fmt.Println("battery:", flightData.BatteryPercentage)
+		battaryInfo()
 	})
 	stick.On(joystick.TrianglePress, func(data interface{}) {
-		drone.TakeOff()
-		println("Takeoff")
+		takeOff()
 	})
 	stick.On(joystick.XPress, func(data interface{}) {
-		drone.Land()
-		println("Land")
+		landing()
 	})
 	stick.On(joystick.RightY, func(data interface{}) {
 		val := float64(data.(int16))
